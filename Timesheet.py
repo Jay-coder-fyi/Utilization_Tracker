@@ -5,22 +5,34 @@ import pandas as pd
 from dataclasses import dataclass, field
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Tuple, Dict, Any
-
+ 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QPushButton, QTableWidget, QTextEdit, QLineEdit, QMessageBox, QHeaderView
 )
 import requests
-
+ 
+# ------------------ Helpers ------------------
+ 
+def format_hours_hhmm(hours_float: float) -> str:
+    """
+    Convert a float in hours to HH:MM (e.g., 1.5 -> "01:30").
+    Minutes roll over at 60 (not 100).
+    """
+    total_minutes = int(round(hours_float * 60))
+    hh = total_minutes // 60
+    mm = total_minutes % 60
+    return f"{hh:02d}:{mm:02d}"
+ 
 # ------------------ Data Models ------------------
-
+ 
 @dataclass
 class DayData:
     sessions: List[Tuple[str, str]] = field(default_factory=list)
     notes: str = ""
     running_start: Optional[datetime] = field(default=None, repr=False)
-
+ 
     def total_hours(self) -> float:
         total = 0.0
         for s_iso, e_iso in self.sessions:
@@ -30,66 +42,66 @@ class DayData:
         if self.running_start:
             total += (datetime.now() - self.running_start).total_seconds() / 3600.0
         return total
-
+ 
     def to_dict(self):
         return {"sessions": self.sessions, "notes": self.notes}
-
+ 
     @staticmethod
     def from_dict(d):
         obj = DayData()
         obj.sessions = d.get("sessions", [])
         obj.notes = d.get("notes", "")
         return obj
-
-
+ 
+ 
 @dataclass
 class TaskRowData:
     task: str
     subtask: str
     days: List[DayData] = field(default_factory=lambda: [DayData() for _ in range(7)])
-
+ 
     def total_hours(self) -> float:
         return sum(day.total_hours() for day in self.days)
-
+ 
     def to_dict(self):
         return {
             "task": self.task,
             "subtask": self.subtask,
             "days": [d.to_dict() for d in self.days]
         }
-
+ 
     @staticmethod
     def from_dict(d):
         tr = TaskRowData(task=d["task"], subtask=d["subtask"])
         tr.days = [DayData.from_dict(dd) for dd in d.get("days", [])]
         return tr
-
-
+ 
+ 
 # ------------------ UI Components ------------------
-
+ 
 class DayCell(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
-
-        self.hours = QLineEdit("0.00")
+ 
+        self.hours = QLineEdit("00:00")
         self.hours.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.hours.setReadOnly(True)
         layout.addWidget(self.hours)
-
+ 
         self.toggle_btn = QPushButton("Start")
         self.toggle_btn.setStyleSheet("background-color: #4CAF50; color: white; border-radius: 6px; padding: 4px;")
         layout.addWidget(self.toggle_btn)
-
+ 
         self.notes = QTextEdit()
         self.notes.setPlaceholderText("Notes…")
         layout.addWidget(self.notes)
-
+ 
     def set_hours(self, hrs: float):
-        self.hours.setText(f"{hrs:.2f}")
-
+        self.hours.setText(format_hours_hhmm(hrs))
+ 
     def set_running(self, running: bool):
         if running:
             self.toggle_btn.setText("Stop")
@@ -97,15 +109,15 @@ class DayCell(QWidget):
         else:
             self.toggle_btn.setText("Start")
             self.toggle_btn.setStyleSheet("background-color: #4CAF50; color: white; border-radius: 6px; padding: 4px;")
-
-
+ 
+ 
 class TaskCell(QWidget):
     def __init__(self, task, subtask, delete_callback, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(8)
-
+ 
         left = QVBoxLayout()
         lbl_t = QLabel(task if task else "(No Task)")
         lbl_t.setStyleSheet("font-weight: bold; color: #2C3E50;")
@@ -114,34 +126,34 @@ class TaskCell(QWidget):
         left.addWidget(lbl_t)
         left.addWidget(lbl_st)
         layout.addLayout(left)
-
+ 
         self.del_btn = QPushButton("🗑 Delete")
         self.del_btn.setStyleSheet("background-color:#B71C1C; color:white; border-radius:6px; padding:4px;")
         self.del_btn.clicked.connect(delete_callback)
         layout.addWidget(self.del_btn)
-
-
+ 
+ 
 # ------------------ Main App ------------------
-
+ 
 class TimesheetApp(QWidget):
     DATA_FILE = "timesheet_data.json"
-
+ 
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Weekly Timesheet")
         self.resize(1300, 800)
-
+ 
         self.week_start = self._monday_of(date.today())
         self.active_timer: Optional[Tuple[int, int]] = None
         self.timer = QTimer(self)
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self._update_running_timer)
-
-        self.data_store: Dict[str, Dict[str, Any]] = {} # MODIFIED: New structure
+ 
+        self.data_store: Dict[str, Dict[str, Any]] = {}  # New structure
         self.rows: List[TaskRowData] = []
         self.is_submitted: bool = False
         self.cells: List[List[DayCell]] = []
-
+ 
         # Employee data
         self.employee_data = {
             "Dipangsu Mukherjee": "Technical",
@@ -179,8 +191,7 @@ class TimesheetApp(QWidget):
             "Ankan Roy": "Sales",
             "Utsav Majumdar": "Sales"
         }
-
-        
+ 
         # --- Department-specific tasks and subtasks ---
         self.department_tasks = {
             "Sales": {
@@ -497,64 +508,63 @@ class TimesheetApp(QWidget):
                 "Meeting": ["Meeting"]
             }
         }
-
-
+ 
         self._load_data()
         self._build_ui()
-        self._on_employee_changed() # Call this to initialize the UI for the first employee
-
+        self._on_employee_changed()  # initialize UI for the first employee
+ 
     # ---------- UI ----------
     def _build_ui(self):
         layout = QVBoxLayout(self)
-
+ 
         # Top Section
         top = QHBoxLayout()
         self.emp_combo = QComboBox()
         self.emp_combo.addItems(sorted(list(self.employee_data.keys())))
-        self.emp_combo.currentTextChanged.connect(self._on_employee_changed) 
+        self.emp_combo.currentTextChanged.connect(self._on_employee_changed)
         top.addWidget(QLabel("Employee:"))
-        top.addWidget(self.emp_combo, 1) # MODIFIED: Add stretch
-
+        top.addWidget(self.emp_combo, 1)
+ 
         self.dept_field = QLineEdit()
         self.dept_field.setReadOnly(True)
         top.addWidget(QLabel("Department:"))
-        top.addWidget(self.dept_field, 1) # MODIFIED: Add stretch
-
-        top.addStretch(1) # MODIFIED: Add stretchable space
-
-        # --- ADDED: Save and Submit buttons ---
+        top.addWidget(self.dept_field, 1)
+ 
+        top.addStretch(1)
+ 
+        # Save and Submit buttons
         self.save_btn = QPushButton("💾 Save Data")
         self.save_btn.clicked.connect(self._manual_save_data)
         self.save_btn.setStyleSheet("background-color:#0277BD; color:white; border-radius:6px; padding:6px;")
         top.addWidget(self.save_btn)
-
+ 
         self.submit_btn = QPushButton("✅ Submit Week")
         self.submit_btn.clicked.connect(self._submit_week)
         self.submit_btn.setStyleSheet("background-color:#388E3C; color:white; border-radius:6px; padding:6px;")
         top.addWidget(self.submit_btn)
-        
+ 
         layout.addLayout(top)
-
+ 
         # Add Task Section
         add_task_layout = QHBoxLayout()
         add_task_layout.addWidget(QLabel("Task:"))
         self.task_combo = QComboBox()
         self.task_combo.setEditable(True)
-        add_task_layout.addWidget(self.task_combo, 2) # MODIFIED: Add stretch
-        
+        add_task_layout.addWidget(self.task_combo, 2)
+ 
         add_task_layout.addWidget(QLabel("Subtask:"))
         self.subtask_combo = QComboBox()
         self.subtask_combo.setEditable(True)
-        add_task_layout.addWidget(self.subtask_combo, 2) # MODIFIED: Add stretch
-
+        add_task_layout.addWidget(self.subtask_combo, 2)
+ 
         self.task_combo.currentTextChanged.connect(self._on_task_changed)
-
+ 
         self.add_task_btn = QPushButton("➕ Add Task")
         self.add_task_btn.clicked.connect(self._add_task)
         self.add_task_btn.setStyleSheet("background-color:#2196F3; color:white; border-radius:6px; padding:6px;")
-        add_task_layout.addWidget(self.add_task_btn, 0) # MODIFIED: No stretch
+        add_task_layout.addWidget(self.add_task_btn, 0)
         layout.addLayout(add_task_layout)
-
+ 
         # Table
         self.table = QTableWidget(0, 9)
         self.table.setHorizontalHeaderLabels(["TASK / SUBTASK", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN", "TOTAL"])
@@ -562,42 +572,42 @@ class TimesheetApp(QWidget):
         hdr.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         layout.addWidget(self.table, 1)
-
+ 
         # Bottom section
         bottom_layout = QHBoxLayout()
-        self.status_label = QLabel("Ready.") # --- ADDED: Status label ---
+        self.status_label = QLabel("Ready.")
         self.status_label.setStyleSheet("color: #555; font-size: 12px;")
         bottom_layout.addWidget(self.status_label)
         bottom_layout.addStretch(1)
-
-        self.week_total_lbl = QLabel("WEEKLY TOTAL: 0.00 h")
+ 
+        self.week_total_lbl = QLabel("WEEKLY TOTAL: 00:00 h")
         self.week_total_lbl.setStyleSheet("font-weight: bold; font-size: 16px; color: #1A237E;")
         bottom_layout.addWidget(self.week_total_lbl)
         layout.addLayout(bottom_layout)
-        
+ 
     def _on_task_changed(self, selected_task: str):
         """Updates the subtask combobox based on the selected task."""
         self.subtask_combo.clear()
-        
+ 
         dept = self.dept_field.text()
         department_specific_tasks = self.department_tasks.get(dept, {})
-        
+ 
         subtasks = department_specific_tasks.get(selected_task, [])
         self.subtask_combo.addItems(subtasks)
-
+ 
     # ---------- Data ----------
     def _data_key(self):
         return f"{self.emp_combo.currentText()}::{self.week_start.isoformat()}"
-
+ 
     def _load_data(self):
         if not os.path.exists(self.DATA_FILE):
             return
-
+ 
         try:
             with open(self.DATA_FILE, "r") as f:
                 raw = json.load(f)
-            
-            # --- MODIFIED: Handle new data structure ---
+ 
+            # Handle new / old structure
             for key, data in raw.items():
                 if isinstance(data, list):
                     # Old format: Convert it
@@ -614,55 +624,55 @@ class TimesheetApp(QWidget):
         except Exception as e:
             print(f"Error loading data: {e}")
             self.data_store = {}
-
+ 
     def _save_data(self):
-        # --- MODIFIED: Save new data structure ---
+        # Save new data structure
         out = {}
         for k, v in self.data_store.items():
             out[k] = {
                 "submitted": v.get("submitted", False),
                 "rows": [r.to_dict() for r in v.get("rows", [])]
             }
-        
+ 
         try:
             with open(self.DATA_FILE, "w") as f:
                 json.dump(out, f, indent=2)
             self.status_label.setText(f"Data saved successfully at {datetime.now().strftime('%H:%M:%S')}")
         except Exception as e:
             self.status_label.setText(f"Error saving data: {e}")
-
-    def _on_employee_changed(self): 
+ 
+    def _on_employee_changed(self):
         """Handles employee selection change."""
         emp = self.emp_combo.currentText()
         dept = self.employee_data.get(emp, "")
         self.dept_field.setText(dept)
-        
+ 
         # Update task combo based on department
         self.task_combo.clear()
         department_specific_tasks = self.department_tasks.get(dept, {})
         if department_specific_tasks:
             self.task_combo.addItems(sorted(department_specific_tasks.keys()))
-        
+ 
         self._load_employee_week()
-
+ 
     def _load_employee_week(self):
         emp = self.emp_combo.currentText()
-        if not emp: return
-        
+        if not emp:
+            return
+ 
         key = self._data_key()
-        
-        # --- MODIFIED: Load from new structure ---
+ 
         week_data = self.data_store.get(key, {"submitted": False, "rows": []})
-        
+ 
         if key not in self.data_store:
-             self.data_store[key] = week_data
-
+            self.data_store[key] = week_data
+ 
         self.rows = week_data["rows"]
         self.is_submitted = week_data["submitted"]
-        
+ 
         self._build_table()
-        self._set_ui_locked(self.is_submitted) # --- ADDED: Lock UI if submitted ---
-
+        self._set_ui_locked(self.is_submitted)
+ 
     # ---------- Add/Delete Task ----------
     def _add_task(self):
         task = self.task_combo.currentText().strip()
@@ -670,15 +680,14 @@ class TimesheetApp(QWidget):
         if not task:
             QMessageBox.warning(self, "Invalid", "Please enter or select a Task.")
             return
-            
+ 
         new_row = TaskRowData(task, subtask)
         self.rows.append(new_row)
-        
-        # --- MODIFIED: Save to new structure ---
+ 
         self.data_store[self._data_key()]["rows"] = self.rows
         self._save_data()
         self._build_table()
-
+ 
     def _delete_task(self, index):
         confirm = QMessageBox.question(
             self, "Confirm Delete", "Are you sure you want to delete this task?",
@@ -686,40 +695,39 @@ class TimesheetApp(QWidget):
         )
         if confirm == QMessageBox.StandardButton.Yes:
             del self.rows[index]
-            # --- MODIFIED: Save to new structure ---
             self.data_store[self._data_key()]["rows"] = self.rows
             self._save_data()
             self._build_table()
-
+ 
     # ---------- Table ----------
     def _build_table(self):
         self.table.setRowCount(0)
         self.cells.clear()
-
+ 
         for ri, row in enumerate(self.rows):
             self.table.insertRow(ri)
             self.table.setRowHeight(ri, 160)
             cell_widget = TaskCell(row.task, row.subtask, lambda _, r=ri: self._delete_task(r))
             self.table.setCellWidget(ri, 0, cell_widget)
-
+ 
             day_widgets = []
             for di in range(7):
                 dc = DayCell()
                 dc.set_hours(row.days[di].total_hours())
-                dc.notes.setText(row.days[di].notes) # --- ADDED: Load notes ---
+                dc.notes.setText(row.days[di].notes)
                 dc.toggle_btn.clicked.connect(lambda _, r=ri, d=di, w=dc: self._toggle_timer(r, d, w))
                 day_widgets.append(dc)
                 self.table.setCellWidget(ri, di + 1, dc)
             self.cells.append(day_widgets)
-
-            total = QLineEdit(f"{row.total_hours():.2f}")
-            total.setReadOnly(True)
-            total.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setCellWidget(ri, 8, total)
-
+ 
+            total_edit = QLineEdit(format_hours_hhmm(row.total_hours()))
+            total_edit.setReadOnly(True)
+            total_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setCellWidget(ri, 8, total_edit)
+ 
         self._add_total_row()
         self._update_week_total()
-
+ 
     def _add_total_row(self):
         if not self.rows:
             return
@@ -730,45 +738,45 @@ class TimesheetApp(QWidget):
         total_lbl.setStyleSheet("font-weight:bold; color:#1B5E20; padding-left: 10px;")
         total_lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         self.table.setCellWidget(total_row, 0, total_lbl)
-
+ 
         for di in range(7):
-            total_day = sum(r.days[di].total_hours() for r in self.rows)
-            field = QLineEdit(f"{total_day:.2f}")
+            total_day_hours = sum(r.days[di].total_hours() for r in self.rows)
+            field = QLineEdit(format_hours_hhmm(total_day_hours))
             field.setReadOnly(True)
             field.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setCellWidget(total_row, di + 1, field)
-
-        week_total = sum(r.total_hours() for r in self.rows)
-        total_field = QLineEdit(f"{week_total:.2f}")
+ 
+        week_total_hours = sum(r.total_hours() for r in self.rows)
+        total_field = QLineEdit(format_hours_hhmm(week_total_hours))
         total_field.setReadOnly(True)
         total_field.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.table.setCellWidget(total_row, 8, total_field)
-
+ 
     # ---------- Timer ----------
     def _toggle_timer(self, ri, di, widget):
-        if self.is_submitted: # --- ADDED: Check lock state ---
+        if self.is_submitted:
             return
-
+ 
         dd = self.rows[ri].days[di]
-
+ 
         if self.active_timer == (ri, di):
             self._stop_timer(ri, di, widget)
             return
-
+ 
         if self.active_timer:
             QMessageBox.warning(self, "Active Timer", "Please stop the current timer first.")
             return
-
+ 
         if di != date.today().weekday():
             QMessageBox.warning(self, "Invalid", "You can only start today's timer.")
             return
-
+ 
         dd.running_start = datetime.now()
         widget.set_running(True)
         self.active_timer = (ri, di)
         self._enable_all_buttons(False, except_widget=widget)
         self.timer.start()
-
+ 
     def _stop_timer(self, ri, di, widget):
         dd = self.rows[ri].days[di]
         if dd.running_start:
@@ -779,9 +787,9 @@ class TimesheetApp(QWidget):
         self.active_timer = None
         self._enable_all_buttons(True)
         self.timer.stop()
-        self._manual_save_data() # --- MODIFIED: Call manual save ---
+        self._manual_save_data()
         self._build_table()
-
+ 
     def _update_running_timer(self):
         if not self.active_timer:
             return
@@ -789,61 +797,61 @@ class TimesheetApp(QWidget):
         hrs = self.rows[ri].days[di].total_hours()
         self.cells[ri][di].set_hours(hrs)
         self._update_week_total()
-
+ 
     def _enable_all_buttons(self, enable: bool, except_widget=None):
         for row in self.cells:
             for cell in row:
                 if cell != except_widget:
                     cell.toggle_btn.setEnabled(enable)
-
+ 
     def _update_week_total(self):
-        total = sum(r.total_hours() for r in self.rows)
-        self.week_total_lbl.setText(f"WEEKLY TOTAL: {total:.2f} h")
-
+        total_hours = sum(r.total_hours() for r in self.rows)
+        self.week_total_lbl.setText(f"WEEKLY TOTAL: {format_hours_hhmm(total_hours)} h")
+ 
     def _monday_of(self, d: date) -> date:
         return d - timedelta(days=d.weekday())
-
-    # --- ADDED: New Save, Submit, and Lock functions ---
-
+ 
+    # --- Save, Submit, and Lock functions ---
+ 
     def _manual_save_data(self):
         """Saves all data, including notes, to the data model and file."""
         if self.is_submitted:
             return
-            
+ 
         for ri, row in enumerate(self.rows):
             for di in range(7):
                 row.days[di].notes = self.cells[ri][di].notes.toPlainText()
-        
+ 
         key = self._data_key()
         if key not in self.data_store:
-             self.data_store[key] = {"submitted": False, "rows": []}
-             
+            self.data_store[key] = {"submitted": False, "rows": []}
+ 
         self.data_store[key]["rows"] = self.rows
         self._save_data()
-
+ 
     def _submit_week(self):
-        """Finalizes and exports the week, then locks the UI."""
+        """Finalizes and exports the week, saves to DB/server, then locks the UI."""
         if self.is_submitted:
             QMessageBox.information(self, "Submitted", "This week has already been submitted.")
             return
-
+ 
         confirm = QMessageBox.question(
             self, "Confirm Submission",
             "Are you sure you want to submit this week?\n"
-            "This will lock the timesheet for this week and export an Excel file.",
+            "This will lock the timesheet for this week, upload to server, and export an Excel file.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
-
+ 
         # 1. Final Save
         self._manual_save_data()
-
+ 
         # 2. Prepare data for export
         export_data = []
         emp = self.emp_combo.currentText()
         dept = self.dept_field.text()
-        
+ 
         for row in self.rows:
             for di, day in enumerate(row.days):
                 if day.total_hours() > 0 or day.notes:
@@ -855,40 +863,69 @@ class TimesheetApp(QWidget):
                         "Date": day_date.isoformat(),
                         "Task": row.task,
                         "Subtask": row.subtask,
-                        "Hours": round(day.total_hours(), 2),
+                        "Hours": round(day.total_hours(), 2),  # keep numeric hours for Excel/analytics
                         "Notes": day.notes
                     })
-        
+ 
         if not export_data:
             QMessageBox.warning(self, "Empty Submission", "Cannot submit an empty timesheet.")
             return
-
-        # 3. Create DataFrame and Excel file
+ 
+        # 3. Optional: Save to your database layer if present
+        try:
+            # If you have a local DB module, keep this. Otherwise it's safe to skip.
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'timesheet_backend'))
+            try:
+                from Database import create_tables, submit_timesheet_entries
+                create_tables()
+                success, message = submit_timesheet_entries(export_data)
+                if not success:
+                    QMessageBox.critical(self, "Database Error", f"Could not submit to database: {message}")
+                    return
+            except ImportError:
+                # If the Database module isn't available, we just skip silently.
+                pass
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Database step failed: {e}")
+            return
+ 
+        # 4. Upload to central server (moved here so export_data is in scope)
+        try:
+            response = requests.post(
+                "http://127.0.0.1:5000/submit",  # backend endpoint
+                json=export_data,
+                timeout=10
+            )
+            if response.status_code == 200:
+                self.status_label.setText("✅ Data uploaded to central server!")
+            else:
+                self.status_label.setText(f"⚠️ Server error: {response.text}")
+        except Exception as e:
+            self.status_label.setText(f"❌ Upload failed: {e}")
+ 
+        # 5. Also export to Excel for backup
         try:
             df = pd.DataFrame(export_data)
             filename = f"Submission_{emp.replace(' ', '_')}_{self.week_start.isoformat()}.xlsx"
             df.to_excel(filename, index=False, engine='openpyxl')
         except PermissionError:
-            QMessageBox.critical(
-                self, "Error", 
-                f"Could not write file. Is '{filename}' open in Excel?"
-            )
+            QMessageBox.critical(self, "Error", f"Could not write file. Is the Excel file open?")
             return
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not export to Excel: {e}")
             return
-
-        # 4. Lock the data
+ 
+        # 6. Lock the data
         self.is_submitted = True
         self.data_store[self._data_key()]["submitted"] = True
         self._save_data()
         self._set_ui_locked(True)
-
+ 
         QMessageBox.information(
             self, "Success",
-            f"Week submitted successfully!\nData exported to:\n{filename}"
+            f"Week submitted successfully!\nData saved/uploaded and exported to:\n{filename}"
         )
-
+ 
     def _set_ui_locked(self, locked: bool):
         """Enables or disables the UI based on submission status."""
         self.table.setEnabled(not locked)
@@ -897,32 +934,22 @@ class TimesheetApp(QWidget):
         self.subtask_combo.setEnabled(not locked)
         self.save_btn.setEnabled(not locked)
         self.submit_btn.setEnabled(not locked)
-        
+ 
         if locked:
             self.status_label.setText("This week is submitted and read-only.")
             self.status_label.setStyleSheet("color: #D32F2F; font-weight: bold;")
         else:
             self.status_label.setText("Ready.")
             self.status_label.setStyleSheet("color: #555; font-size: 12px;")
-
-try:
-    response = requests.post(
-        "http://127.0.0.1:5000/submit",  # backend endpoint
-        json=export_data,
-        timeout=10
-    )
-    if response.status_code == 200:
-        print("✅ Data uploaded to central server!")
-    else:
-        print("⚠️ Server error:", response.text)
-except Exception as e:
-    print("❌ Upload failed:", e)
-
+ 
+ 
 # ------------------ Run ------------------
-
+ 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyleSheet("QWidget { font-family: Segoe UI; font-size: 13px; }")
     win = TimesheetApp()
     win.show()
     sys.exit(app.exec())
+ 
+ 
