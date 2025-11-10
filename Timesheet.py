@@ -492,7 +492,7 @@ def submit_week(n_clicks, data_store, emp, week_date):
                     "Employee": emp,
                     "Department": EMPLOYEE_DATA.get(emp, ""),
                     "Week Start": week_start.isoformat(),
-                    "Date": day_date.isoformat(),
+                    "Week End": day_date.isoformat(),
                     "Task": row.get("task"),
                     "Subtask": row.get("subtask"),
                     "Hours": round(hrs, 2),
