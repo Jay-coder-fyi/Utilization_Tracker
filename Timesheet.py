@@ -636,6 +636,12 @@ def handle_all_updates(
     
     # --- Logic for Delete Task ---
     elif isinstance(triggered_id, dict) and triggered_id.get("type") == "delete-row":
+        # --- FIX ---
+        # Check if any delete button was *actually* clicked.
+        # If the list is all None, it was triggered by a re-render.
+        if not any(delete_clicks):
+            return no_update, no_update, no_update, no_update, no_update
+            
         idx = int(triggered_id["index"])
         week_start = date.fromisoformat(week_date)
         key = f"{emp}::{week_start.isoformat()}"
@@ -647,6 +653,12 @@ def handle_all_updates(
 
     # --- Logic for Toggle Timer ---
     elif isinstance(triggered_id, dict) and triggered_id.get("type") == "toggle-btn":
+        # --- FIX ---
+        # Check if any toggle button was *actually* clicked.
+        # If the list is all None, it was triggered by a re-render.
+        if not any(toggle_clicks):
+            return no_update, no_update, no_update, no_update, no_update
+            
         idx_str = triggered_id["index"]  # format "{row}-{day}"
         row_idx, day_idx = [int(x) for x in idx_str.split("-")]
         week_start = date.fromisoformat(week_date)
