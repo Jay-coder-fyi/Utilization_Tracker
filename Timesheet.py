@@ -102,7 +102,6 @@ EMPLOYEE_DATA = {
     "Ritu Das": "Marketing",
     "Soumya Manna": "Development",
     "Jayant Rai": "Technical",
-    "Ayos Ghosh": "Operation",
     "Sayam Rozario": "Admin",
     "Sneha Simran": "Admin",
     "Pompi Goswami": "Human Resource",
@@ -111,7 +110,6 @@ EMPLOYEE_DATA = {
     "Romit Roy": "Admin",
     "Soumi Roy": "Admin",
     "Subhasis Marick": "Accountant",
-    "Hrithik Lall": "Technical",
     "Subhojit Chakraborty": "Technical",
     "Rohit Kumar Singh": "Technical",
     "Sujay Kumar Lodh": "Technical",
@@ -126,7 +124,9 @@ EMPLOYEE_DATA = {
     "Saikat Dutta": "Development",
     "Ankan Roy": "Sales",
     "Utsav Majumdar": "Sales",
-    "Artha Chakraborty": "Marketing"
+    "Artha Chakraborty": "Marketing",
+    "Soumen Paul" : "Marketing",
+    "Papia Biswas" : "Sales"
 }
 
 # For brevity, department_tasks is simplified but kept faithful to original structure
@@ -510,7 +510,7 @@ def generate_task_row_component(row_idx: int, row_data: Dict[str, Any]) -> html.
 
 app.layout = dbc.Container(
     [
-        html.H3("Weekly Timesheet DasaSpace(Satts Cyber Tech Pvt. Ltd.)", className="my-3"),
+        html.H3("Weekly Timesheet DataSpace(Satts Cyber Tech Pvt. Ltd.)", className="my-3"),
         dbc.Row([
             dbc.Col([html.Label("Employee"), dcc.Dropdown(options=[{"label": k, "value": k} for k in sorted(EMPLOYEE_DATA.keys())], id="emp-dropdown", value=sorted(EMPLOYEE_DATA.keys())[0])], width=3),
             dbc.Col([html.Label("Department"), dbc.Input(id="dept-input", readonly=True, value="", style={"width": "100%"})], width=3),
