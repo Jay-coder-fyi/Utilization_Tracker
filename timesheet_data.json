@@ -64,7 +64,54 @@
     "rows": []
   },
   "Arya Majumdar::2025-11-17": {
-    "rows": []
+    "rows": [
+      {
+        "task": "Project Management & Scrum",
+        "subtask": "Track Blockers, Dependencies & Resources",
+        "days": [
+          {
+            "sessions": [],
+            "notes": "",
+            "running_start": null
+          },
+          {
+            "sessions": [],
+            "notes": "",
+            "running_start": null
+          },
+          {
+            "sessions": [],
+            "notes": "",
+            "running_start": null
+          },
+          {
+            "sessions": [],
+            "notes": "",
+            "running_start": null
+          },
+          {
+            "sessions": [
+              [
+                "2025-11-21T00:29:43.934",
+                "2025-11-21T00:33:16.687"
+              ]
+            ],
+            "notes": "",
+            "running_start": null
+          },
+          {
+            "sessions": [],
+            "notes": "",
+            "running_start": null
+          },
+          {
+            "sessions": [],
+            "notes": "",
+            "running_start": null
+          }
+        ]
+      }
+    ]
   },
   "Jayant Rai::2025-11-17": {
     "rows": []

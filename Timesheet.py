@@ -93,12 +93,17 @@ def day_total_hours(day_obj: Dict[str, Any]) -> float:
 
 # ------------------ Static Data ------------------
 EMPLOYEE_DATA = {
-    "Dipangsu Mukherjee": "Technical", "Soumya Maity": "Technical",
-    "Prithish Biswas": "Development", "Arya Majumdar": "Development",
-    "Shahbaz Ali": "Technical", "Souma Banerjee": "Sales", 
-    "Shivangi Singh": "Sales", "Ritu Das": "Marketing", 
-    "Soumya Manna": "Development", # cite: 6
-    "Jayant Rai": "Technical", "Sayam Rozario": "Admin", 
+    "Dipangsu Mukherjee": "Technical", 
+    "Soumya Maity": "Technical",
+    "Prithish Biswas": "Development", 
+    "Arya Majumdar": "Development",
+    "Shahbaz Ali": "Technical", 
+    "Souma Banerjee": "Sales", 
+    "Shivangi Singh": "Sales", 
+    "Ritu Das": "Marketing", 
+    "Soumya Manna": "Development",
+    "Jayant Rai": "Technical", 
+    "Sayam Rozario": "Admin", 
     "Sneha Simran": "Admin", "Pompi Goswami": "Human Resource", 
     "Joydeep Chakraborty": "Sales", "Peea P Bal": "Placement", 
     "Romit Roy": "Admin", "Soumi Roy": "Admin", 
